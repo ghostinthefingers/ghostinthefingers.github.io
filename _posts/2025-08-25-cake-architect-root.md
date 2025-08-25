@@ -8,6 +8,7 @@ tags: [writeup, boot2root, suid, pwn, root, privilege]
 
 
 - Challenge: Cake Architect (root)
+- Category: boot2root
 - Difficulty: Hard
 
 ## Introduction
