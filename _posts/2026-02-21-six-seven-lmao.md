@@ -13,14 +13,11 @@ tags: [writeup, heap, tcache, pwn, rop, glibc2.42, UAF]
 
 This challenge targets a heap vulnerability on **glibc 2.42**, a modern allocator hardened with safe-linking and strengthened integrity checks. The mission is straightforward: achieve remote code execution and read the flag.
 
-No outdated tricks apply here, exploitation requires precise leaks, deliberate heap state manipulation, and mathematical defeat of pointer mangling.
-
-In this writeup, we systematically dismantle the allocator: leaking libc, recovering the heap key, pivoting to the stack, and forging a clean ROP chain to seize execution.
+This write-up describes the exploitation of a Use-After-Free (UAF) vulnerability to disclose heap, libc, and stack addresses through tcache poisoning, followed by constructing a ROP chain to achieve arbitrary code execution.
 
 ## Reverse Engineering the Binary
 
 The binary exposes a minimal heap interface: create, delete, read, edit, and exit.
-There are no stack buffers, no format strings, no obvious overflows. The entire attack surface is the allocator.
 
 ### main function
 
