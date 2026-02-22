@@ -519,4 +519,4 @@ p.interactive()
 
 ## Conclusion 🏆
 
-Heap exploitation challenge: use-after-free, leaks, safe-linking bypass, and memory manipulation to achieve code execution by understanding allocator behavior. The next challenge (**six-seven-revenge**) is harder: no **use-after-free**, no **heap overflow** or **double free**, freed pointers are cleared, and seccomp restricts system calls.
+Heap exploitation challenge: use-after-free, leaks, safe-linking bypass, and memory manipulation to achieve code execution by understanding allocator behavior. The next challenge (<a href="https://ghostinthefingers.github.io/posts/six-seven-revenge/"><strong>six-seven-revenge</strong></a>) is harder: no **use-after-free**, no **heap overflow** or **double free**, freed pointers are cleared, and seccomp restricts system calls.
