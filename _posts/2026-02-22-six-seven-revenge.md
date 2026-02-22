@@ -43,7 +43,7 @@ unsigned __int64 edit_note()
     printf("Data: ");
     v2 = read(0, notes[v1], sizes[v1]);
     if (v2 >= 0)
-      *((_BYTE *)notes[v1] + v2) = 0;
+      *((_BYTE *)notes[v1] + v2) = 0;  # <== off-by-one BUG is here
     puts("Updated!");
   }
   return v3 - __readfsqword(0x28u);
