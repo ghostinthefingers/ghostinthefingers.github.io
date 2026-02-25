@@ -2,7 +2,7 @@
 layout: post
 title: "0xFunCTF2026 Writeup :: Six-seven-revenge"
 date: 2026-02-22
-categories: [Writeups, pwn, Heap challenges]
+categories: [Pwn, Heap Challenges]
 tags:
   [
     writeup,

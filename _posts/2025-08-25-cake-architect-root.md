@@ -2,7 +2,7 @@
 layout: post
 title: "BrunnerCTF2025 Writeup :: Cake Architect Root"
 date: 2025-08-25
-categories: [Writeups, brunnerCTF2025]
+categories: [Pwn, Race Condition]
 tags: [writeup, boot2root, suid, pwn, root, privilege]
 ---
 
