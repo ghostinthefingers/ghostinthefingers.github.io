@@ -2,7 +2,7 @@
 layout: post
 title: "0xFunCTF2026 Writeup :: Six-seven-lmao"
 date: 2026-02-21
-categories: [Writeups, 0xFunCTF2026]
+categories: [Writeups, pwn, Heap challenges]
 tags: [writeup, heap, tcache, pwn, rop, glibc2.42, UAF]
 ---
 
